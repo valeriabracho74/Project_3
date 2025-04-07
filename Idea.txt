@@ -1,0 +1,3 @@
+# Project 3 Idea
+
+# SeaImpact: look at this website https://sea-impact.com/offshore-wind-map/Links to an external site.  . There are several variables available for offshore wind farms, including water depth, cables, layouts, boundaries, etc. Your project will be: 1) Choose at least one variable to collect; 2) Develop a program that outputs a numpy array of that variable in a format ready to use for future applications. Include codes for plotting, etc.

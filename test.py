@@ -1,7 +1,3 @@
-import numpy as n
-bknj
+import py_wake
 
-nnkl
-bfvdcfv
-
-miiii
+print('done')
