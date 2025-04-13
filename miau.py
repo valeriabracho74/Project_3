@@ -1,84 +1,84 @@
+import json
 import numpy as np
 import matplotlib.pyplot as plt
-from matplotlib.path import Path
-import json
-import pandas as pd
 
-class GeoBoundary:
-    def __init__(self, geojson_file):
-        self.geojson = self._load_geojson(geojson_file)
-        self.coords = self._extract_coordinates()
-        self.polygon_array = np.array(self.coords)
-        self.path = Path(self.polygon_array)
+class YunlinFarmVisualizer:
+    def __init__(self, boundary_file="polygonyunlin.geojson", cables_file="linecables.geojson", turbines_file="pointgenerator.geojson"):
+        self.boundary_file = boundary_file
+        self.cables_file = cables_file
+        self.turbines_file = turbines_file
+        self.boundary_array = self._load_boundary()
+        self.cables_array = self._load_cables()
+        self.turbines_array = self._load_turbines()
 
-    def _load_geojson(self, filepath):
-        with open(filepath, 'r') as f:
-            return json.load(f)
+    def _load_boundary(self):
+        with open(self.boundary_file, 'r') as f:
+            geojson = json.load(f)
+        for feature in geojson["features"]:
+            if feature["geometry"]["type"] == "Polygon":
+                coords = feature["geometry"]["coordinates"][0]
+                return np.array(coords)
+        return np.array([])
 
-    def _extract_coordinates(self):
-        return self.geojson['features'][0]['geometry']['coordinates'][0]
+    def _load_cables(self):
+        with open(self.cables_file, 'r') as f:
+            geojson = json.load(f)
+        cables = []
+        for feature in geojson["features"]:
+            if feature["geometry"]["type"] == "LineString":
+                coords = feature["geometry"]["coordinates"]
+                for i in range(len(coords) - 1):
+                    x1, y1 = coords[i]
+                    x2, y2 = coords[i + 1]
+                    cables.append([x1, y1, x2, y2])
+        return np.array(cables)
 
-    def get_array(self):
-        return self.polygon_array
+    def _load_turbines(self):
+        with open(self.turbines_file, 'r') as f:
+            geojson = json.load(f)
+        points = []
+        for feature in geojson["features"]:
+            if feature["geometry"]["type"] == "Point":
+                x, y = feature["geometry"]["coordinates"]
+                points.append([x, y])
+        return np.array(points)
 
     def plot(self):
-        x, y = self.polygon_array[:, 0], self.polygon_array[:, 1]
-        plt.figure(figsize=(8, 6))
-        plt.plot(x, y, linestyle='-', marker='o', label='Boundary Polygon')
+        plt.figure(figsize=(10, 8))
+
+        if self.boundary_array.size > 0:
+            plt.plot(self.boundary_array[:, 0], self.boundary_array[:, 1], 'b-', label='Wind Farm Boundary')
+
+        for idx, line in enumerate(self.cables_array):
+            x1, y1, x2, y2 = line
+            label = 'Inter-Array Cables' if idx == 0 else None
+            plt.plot([x1, x2], [y1, y2], color='gray', alpha=0.7, label=label)
+
+        if self.turbines_array.size > 0:
+            plt.scatter(self.turbines_array[:, 0], self.turbines_array[:, 1], color='orange', label='Turbines', zorder=5)
+
+        plt.title("Yunlin Wind Farm: Boundary, Cables, and Turbines")
         plt.xlabel("Longitude")
         plt.ylabel("Latitude")
         plt.axis('equal')
         plt.grid(True)
-
-    def contains_point(self, lon, lat):
-        """
-        Check if a given (longitude, latitude) point is inside the polygon.
-        Returns True if the point is inside, False otherwise.
-        """
-        return self.path.contains_point((lon, lat))
-
-    def load_turbines(self, csv_file):
-        """
-        Load turbine positions from a CSV file with columns: 'lon', 'lat'.
-        Returns a DataFrame with an added 'inside' column (True/False).
-        """
-        df = pd.read_csv(csv_file)
-        df['inside'] = df.apply(lambda row: self.contains_point(row['lon'], row['lat']), axis=1)
-        return df
-
-    def plot_turbines(self, df):
-        inside = df[df['inside']]
-        outside = df[~df['inside']]
-
-        self.plot()  # draw the boundary first
-        plt.scatter(inside['lon'], inside['lat'], color='green', label='Inside Turbines')
-        plt.scatter(outside['lon'], outside['lat'], color='red', label='Outside Turbines')
         plt.legend()
-        plt.title("Turbines Inside/Outside Boundary")
         plt.show()
 
+    def get_arrays(self):
+        return self.boundary_array, self.cables_array, self.turbines_array
+
+    def save_arrays(self, prefix="yunlin"):
+        np.save(f"{prefix}_boundary.npy", self.boundary_array)
+        np.save(f"{prefix}_cables.npy", self.cables_array)
+        np.save(f"{prefix}_turbines.npy", self.turbines_array)
+        print("Arrays saved as .npy files.")
+
 if __name__ == "__main__":
-    boundary = GeoBoundary("circle.geojson")
-    print("Polygon array shape:", boundary.get_array().shape)
-    boundary.plot()
-    plt.title("Wind Farm Boundary Only")
-    plt.show()
-
-    # Example: Check if a turbine is inside the boundary
-    sample_turbine_lon = 119.8500
-    sample_turbine_lat = 25.3200
-    is_inside = boundary.contains_point(sample_turbine_lon, sample_turbine_lat)
-    print(f"Is turbine at ({sample_turbine_lon}, {sample_turbine_lat}) inside the polygon?", is_inside)
-
-    # Generate and save dummy turbines for testing
-    test_turbines = pd.DataFrame({
-        'lon': [119.9, 120.1, 121.0, 118.9, 119.6],
-        'lat': [24.8, 24.0, 23.5, 25.1, 24.6]
-    })
-    test_turbines.to_csv("turbines.csv", index=False)
-    print("Dummy 'turbines.csv' created with sample coordinates.")
-
-    # Load and plot turbines from CSV file
-    turbines_df = boundary.load_turbines("turbines.csv")
-    print("Turbine DataFrame with inside status:\n", turbines_df)
-    boundary.plot_turbines(turbines_df)
+    visualizer = YunlinFarmVisualizer()
+    boundary, cables, turbines = visualizer.get_arrays()
+    print("Boundary shape:", boundary.shape)
+    print("Cables shape:", cables.shape)
+    print("Turbines shape:", turbines.shape)
+    visualizer.plot()
+    visualizer.save_arrays()
